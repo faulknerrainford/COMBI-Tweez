@@ -1,8 +1,6 @@
-def pid_controller(setpoint: float, pv: float, pid_gains, previous_pid_gains,
-                   process_variable, previous_process_variable,
-                   derivative_action,
-                   previous_error: float, integrated_error: float, dt: float,
-                   output_range, reinitialise, previous_output):
+import json
+
+def pid_controller(pid_json: str, output_range_min, output_range_max, pid_gains, setpoint, process_variable, reinitialise, dt):
     """
     This function implements the core logic of the PID controller. It takes the setpoint, current process variable (PV),
     PID gains (kp, ki, kd), previous error, integral of the error, and the time step (dt) as inputs. It computes the
@@ -13,10 +11,36 @@ def pid_controller(setpoint: float, pv: float, pid_gains, previous_pid_gains,
 
     Parameters
     ----------
+    pid_json : str
+        The collection of values that are kept for persistence between functions calls.
+    output_range_min, output_range_max : float
+        The output range into which outputs are coerced to fit in.
+    pid_gains : list[float, float, float]
+        The x, y, z values for PID
+    setpoint : float
+        The target value for the QPD
+    process_variable : float
+        The current QPD value.
+    reinitialise : bool
+        Flag for if the system is being reinitialised.
+    dt: float
+        Time step since last call
 
+    Returns
+    -------
+    pid_json: str
+        json with the persistent values needed for next call.
+    output: float
+        The output pid value
     """
-    # Update pid_gains
-    new_pid_gains = pid_gains
+    # Unpack json
+    pid_dict = json.loads(pid_json)
+    previous_pid_gains = [pid_dict['x'], pid_dict['y'], pid_dict['z']]
+    previous_process_variable = pid_dict["process_variable"]
+    derivative_action = pid_dict["derivative_action"]
+    previous_output = pid_dict["output"]
+    previous_error = pid_dict["error"]
+    integrated_error = pid_dict["integrated_error"]
 
     # SET PROCESS VARIABLE
     if dt <= 0 and not reinitialise:
@@ -33,7 +57,7 @@ def pid_controller(setpoint: float, pv: float, pid_gains, previous_pid_gains,
         new_derivative_action = derivative_action
 
     # SET ERROR VARIABLES
-    error = setpoint - pv
+    error = setpoint - process_variable
 
     # CALCULATE INTEGRATED ERROR
     skip = False
@@ -59,10 +83,10 @@ def pid_controller(setpoint: float, pv: float, pid_gains, previous_pid_gains,
                 ei = (error+previous_error)*pid_gains[0]*dt/(120*pid_gains[1]) + integrated_error
 
             # Coerce the value to be inside the output range with consideration for error
-            if ei + (error*pid_gains[0]) < output_range[0]:
-                ei = output_range[0]-(error*pid_gains[0])
-            elif ei + (error*pid_gains[0]) > output_range[1]:
-                ei = output_range[1] - (error*pid_gains[0])
+            if ei + (error*pid_gains[0]) < output_range_min:
+                ei = output_range_min-(error*pid_gains[0])
+            elif ei + (error*pid_gains[0]) > output_range_max:
+                ei = output_range_max - (error*pid_gains[0])
     integrated_error = ei
 
     # CALCULATE OUTPUT VALUE
@@ -74,17 +98,21 @@ def pid_controller(setpoint: float, pv: float, pid_gains, previous_pid_gains,
         output = integrated_error + error*pid_gains[0] + new_derivative_action
 
     # Coerce value to output_range
-    if output < output_range[0]:
-        output = output_range[0]
-    elif output > output_range[1]:
-        output = output_range[1]
+    if output < output_range_min:
+        output = output_range_min
+    elif output > output_range_max:
+        output = output_range_max
     else:
         output = output
 
+    # Update json values and package
+    pid_dict["x"], pid_dict["y"], pid_dict["z"] = pid_gains
+    pid_dict["process_variable"] = new_process_variable
+    pid_dict["derivative_action"] = new_derivative_action
+    pid_dict["output"] = output
+    pid_dict["error"] = error
+    pid_dict["integrated_error"] = integrated_error
 
-    return new_pid_gains, new_process_variable, new_derivative_action, error, integrated_error, output
+    pid_json = json.dumps(pid_dict)
 
-
-
-
-
+    return pid_json, output
