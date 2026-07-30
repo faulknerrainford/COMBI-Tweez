@@ -1,8 +1,8 @@
 from ctypes import *
-mad = cdll.LoadLibrary(r'C:\Users\psmr500\PycharmProjects\COMBI-Tweez\LabVIEW Microscope Control\Nanostage\Madlib.dll')
-from pid import pid_controller
+mad = cdll.LoadLibrary(r'.\Madlib.dll')
+from Nanostage.pid import pid_controller
 
-def read_positon(handle_in):
+def read_position(handle_in):
     """
     Takes the handle and returns the position using the MADLib.dll, MCL_SingleReadN
 
@@ -30,6 +30,6 @@ def force_clamp(pid_json, desired_force, nanostage, QPD, pos0, handle_in, dt,
 
         pid_json, pid_output = pid_controller(pid_json, output_range_min, output_range_max, PID_gains, setpoint, QPD_delta, reinitialise, dt)
         mad.MCL_SingleReadN(nanostage+pid_output, 1, handle_in)
-        return pid_json, QPD_delta, setpoint, pid_output
+        return pid_json, [QPD_delta, setpoint, pid_output]
     else:
-        return pid_json, 0, setpoint, 0
+        return pid_json, [0, setpoint, 0]
