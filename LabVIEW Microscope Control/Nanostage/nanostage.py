@@ -1,6 +1,8 @@
 from ctypes import *
+from operator import truediv
+
 mad = cdll.LoadLibrary(r'.\Madlib.dll')
-import json
+import json, math, time
 
 def pid_controller(pid_json: str, output_range_min, output_range_max, pid_gains, setpoint, process_variable, reinitialise, dt):
     """
@@ -136,17 +138,167 @@ def read_position(handle_in):
     position = [mad.MCL_SingleReadN(x+1, handle_in) for x in range(3)]
     return position
 
-def force_clamp(pid_json, desired_force, nanostage, qpd, pos0, handle_in, dt,
+def force_clamp(pid_json: str, desired_force, nanostage, qpd, pos0, handle_in, dt,
                 output_range_min, output_range_max, pid_gains, reinitialise, apply_force):
     """
+    Operates the forces clamp and runs pid controller.
 
+    Parameters
+    ----------
+    pid_json: string
+        JSON file of persistent values for the pid controller
+    desired_force: float
+        desired force on clamp
+    nanostage: int
+    qpd: float
+    pos0: float
+        Initial position of the clamp
+    handle_in: int
+        integer providing addressing info for hardware
+    dt: float
+        Time interval since previous call
+    output_range_min: float
+        Min spectrum values, values are coerced to be greater than or equal to this.
+    output_range_max: float
+        Max spectrum values, values are coerced to be less than or equal to this.
+    pid_gains: list[float, float, float]
+        x,y,z position readings
+    reinitialise: bool
+        flag to indicate if pid controller is being reset
+    apply_force: bool
+        flag to indicate if force clamp should be applied
+
+    Returns
+    -------
+    string
+        JSON of persistent values for the pid controller
+    list[float, float, float]:
+        qpd_delta: float
+        setpoint: float
+        pid_output: float
     """
     setpoint = desired_force+pos0
     if apply_force:
         qpd_delta = qpd - pos0
-
         pid_json, pid_output = pid_controller(pid_json, output_range_min, output_range_max, pid_gains, setpoint, qpd_delta, reinitialise, dt)
         mad.MCL_SingleReadN(nanostage+pid_output, 1, handle_in)
         return pid_json, [qpd_delta, setpoint, pid_output]
     else:
         return pid_json, [0, setpoint, 0]
+
+def interval_move(axis: int, handle: int, destination: float, speed: float, interval: float)->float:
+    """
+    Moves nanostage in a single axis to a given position and returns the new position.
+
+    Parameters
+    ----------
+    axis: int
+        axis of movement to position nanostage in.
+    handle: int
+        integer providing addressing info for hardware
+    destination: float
+        requested position
+    speed: float
+        um/s speed for how quick to move the nanostage
+    interval: float
+        number of moves to use to move the nanostage
+
+    Return
+    ------
+    float:
+        new position of the nanostage
+    """
+    read_return = mad.MCL_SingleReadN(axis, handle)
+    index = math.ceil(abs((destination-read_return)/(speed*interval)))
+    wait = interval * 1000
+    if destination-read_return>0:
+        speed_interval = speed*interval
+    else:
+        speed_interval = -(speed*interval)
+    for i in range(index):
+        mad.MCL_SingleWriteN(i*speed_interval+read_return, axis, handle)
+        time.sleep(wait)
+    mad.MCL_SingleReadN(destination, axis, handle)
+    position = mad.MCL_SingleReadN(axis, handle)
+    return position
+
+def centre_stage(destination, handle):
+    """
+    Moves nanostage to a given position.
+
+    Parameters
+    ----------
+    destination: float
+        desired position
+    handle: int
+        integer providing addressing info for hardware
+    """
+    for i in range(3):
+        interval_move(i+1, handle, destination, 100, 0.05)
+    return handle
+
+def nanostage_moving(handle: int, step_size: bool, fine: float, course: float, keyboard_input: str,
+                     left: bool, right: bool, forward: bool, back: bool, up: bool, down: bool,
+                     x: float, y: float, z: float):
+    """
+    Allows the nanostage to be repositioned based on keyboard and interface input.
+
+    Parameters
+    ----------
+    handle: int
+        integer providing addressing info for hardware
+    step_size: bool
+        Sets movement inresponce to input as either fine or course
+    fine: float
+        Sets the smaller step size for nanostage movement
+    course: float
+        Sets the larger step size for nanostage movement
+    keyboard_input: str
+        Provides a string value representing the keyboard input
+    left: bool
+        Indicates if the left button in the interface is being pressed
+    right: bool
+        Indicates if the right button in the interface is being pressed
+    forward: bool
+        Indicates if the forward button in the interface is being pressed
+    back: bool
+        Indicates if the backward button in the interface is being pressed
+    up: bool
+        Indicates if the up button in the interface is being pressed
+    down: bool
+        Indicates if the down button in the interface is being pressed
+    x: float
+        Position in the x-(0-)axis
+    y: float
+        Position in the y-(1-)axis
+    z: float
+        Position in the z-(2-)axis
+    """
+    if step_size:
+        set_step_size = fine/1000
+    else:
+        set_step_size = course/1000
+
+    # Movement in x axis
+    if keyboard_input=='D'or keyboard_input=='\\' or left or right:
+        if keyboard_input=='\\' or right:
+            new_position = x-set_step_size
+        else:
+            new_position = x+set_step_size
+        mad.MCL_SingleWriteN( new_position, 2, handle)
+
+    # Movement in y axis
+    if keyboard_input=='f' or keyboard_input==';' or forward or back:
+        if keyboard_input==';' or down:
+            new_position = y-set_step_size
+        else:
+            new_position = y+set_step_size
+        mad.MCL_SingleWriteN( new_position, 1, handle)
+
+    # Movement in z axis
+    if keyboard_input=='Cf' or keyboard_input==';C' or up or down:
+        if keyboard_input=='Cf' or down:
+            new_position = z-set_step_size
+        else:
+            new_position = z+set_step_size
+        mad.MCL_SingleWriteN( new_position, 3, handle)
