@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "combi-tweez"
+version = "0.1.0"
+description = ""
+authors = ["Penn Rainford <penn.rainford@york.ac.uk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "==1.25.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

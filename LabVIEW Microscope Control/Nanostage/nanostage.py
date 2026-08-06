@@ -1,10 +1,10 @@
+from __future__ import annotations
 from ctypes import *
-from operator import truediv
 
 mad = cdll.LoadLibrary(r'.\Madlib.dll')
 import json, math, time
 
-def pid_controller(pid_json: str, output_range_min, output_range_max, pid_gains, setpoint, process_variable, reinitialise, dt):
+def pid_controller(pid_json: str, output_range_min, output_range_max, pid_gains, setpoint, process_variable, reinitialise, dt)-> tuple[str, float]:
     """
     This function implements the core logic of the PID controller. It takes the setpoint, current process variable (PV),
     PID gains (kp, ki, kd), previous error, integral of the error, and the time step (dt) as inputs. It computes the
@@ -302,3 +302,54 @@ def nanostage_moving(handle: int, step_size: bool, fine: float, course: float, k
         else:
             new_position = z+set_step_size
         mad.MCL_SingleWriteN( new_position, 3, handle)
+
+def exramp_triangle_generator(start: float, end: float, no_positions: int)->list[float]:
+    """
+
+    Parameters
+    ----------
+    start: float
+    end: float
+    no_positions: int
+
+    Returns
+    -------
+    List[float]
+    """
+    step_size = end-start/-no_positions
+    array: list[float] = [0 for x in range(2*no_positions)]
+    for i in range(no_positions):
+        array[i] = start+(i*step_size)
+        array[i+no_positions] = end - (i*step_size)
+    return array
+
+def nanostage_tapping(current_x: float, current_y:float, current_z: float, start_x: float, start_y: float, start_z: float, samples: int, amp_x: float, amp_y:float, amp_z: float, handle: int, delay: int):
+    if amp_x == 0:
+        array_x: list[float] = [start_x for x in range(2*samples)]
+    else:
+        array_x = exramp_triangle_generator(start_x, current_x-amp_x, samples)
+    if amp_y == 0:
+        array_y: list[float] = [start_y for x in range(2 * samples)]
+    else:
+        array_y = exramp_triangle_generator(start_y, current_y-amp_y, samples)
+    if amp_z == 0:
+        array_z: list[float] = [start_z for x in range(2 * samples)]
+    else:
+        array_z = exramp_triangle_generator(start_z, current_z-amp_z, samples)
+
+    # Ensure assignment
+    x, y, z = current_x, current_y, current_z
+
+    # Movement loop
+    for i in range(samples*2):
+        # Move wait then read
+        mad.MCL_SingleWriteN( array_x[i], 2, handle)
+        mad.MCL_SingleWriteN( array_y[i], 1, handle)
+        mad.MCL_SingleWriteN( array_z[i], 3, handle)
+        time.sleep(delay)
+        x = mad.MCL_SingleReadN( 2, handle)
+        y = mad.MCL_SingleReadN( 1, handle)
+        z = mad.MCL_SingleReadN( 3, handle)
+
+    return [x, y, z]
+
