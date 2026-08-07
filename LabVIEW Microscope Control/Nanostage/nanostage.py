@@ -323,7 +323,9 @@ def exramp_triangle_generator(start: float, end: float, no_positions: int)->list
         array[i+no_positions] = end - (i*step_size)
     return array
 
-def nanostage_tapping(current_x: float, current_y:float, current_z: float, start_x: float, start_y: float, start_z: float, samples: int, amp_x: float, amp_y:float, amp_z: float, handle: int, delay: int):
+def nanostage_tapping(current_x: float, current_y:float, current_z: float,
+                      start_x: float, start_y: float, start_z: float, samples: int,
+                      amp_x: float, amp_y:float, amp_z: float, handle: int, delay: int):
     if amp_x == 0:
         array_x: list[float] = [start_x for x in range(2*samples)]
     else:
@@ -343,6 +345,7 @@ def nanostage_tapping(current_x: float, current_y:float, current_z: float, start
     # Movement loop
     for i in range(samples*2):
         # Move wait then read
+        # TODO: check if delays need to be between all moves or just between move and read
         mad.MCL_SingleWriteN( array_x[i], 2, handle)
         mad.MCL_SingleWriteN( array_y[i], 1, handle)
         mad.MCL_SingleWriteN( array_z[i], 3, handle)
