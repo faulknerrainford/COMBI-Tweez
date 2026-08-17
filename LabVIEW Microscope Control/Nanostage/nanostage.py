@@ -248,7 +248,7 @@ def nanostage_moving(handle: int, step_size: bool, fine: float, course: float, k
     handle: int
         integer providing addressing info for hardware
     step_size: bool
-        Sets movement inresponce to input as either fine or course
+        Sets movement in response to input as either fine or course
     fine: float
         Sets the smaller step size for nanostage movement
     course: float
@@ -287,7 +287,7 @@ def nanostage_moving(handle: int, step_size: bool, fine: float, course: float, k
             new_position = x+set_step_size
         mad.MCL_SingleWriteN( new_position, 2, handle)
 
-    # Movement in y axis
+    # Movement in y-axis
     if keyboard_input=='f' or keyboard_input==';' or forward or back:
         if keyboard_input==';' or down:
             new_position = y-set_step_size
@@ -317,7 +317,7 @@ def exramp_triangle_generator(start: float, end: float, no_positions: int)->list
     List[float]
     """
     step_size = end-start/-no_positions
-    array: list[float] = [0 for x in range(2*no_positions)]
+    array: list[float] = [0 for _ in range(2*no_positions)]
     for i in range(no_positions):
         array[i] = start+(i*step_size)
         array[i+no_positions] = end - (i*step_size)
@@ -327,15 +327,15 @@ def nanostage_tapping(current_x: float, current_y:float, current_z: float,
                       start_x: float, start_y: float, start_z: float, samples: int,
                       amp_x: float, amp_y:float, amp_z: float, handle: int, delay: int):
     if amp_x == 0:
-        array_x: list[float] = [start_x for x in range(2*samples)]
+        array_x: list[float] = [start_x for _ in range(2*samples)]
     else:
         array_x = exramp_triangle_generator(start_x, current_x-amp_x, samples)
     if amp_y == 0:
-        array_y: list[float] = [start_y for x in range(2 * samples)]
+        array_y: list[float] = [start_y for _ in range(2 * samples)]
     else:
         array_y = exramp_triangle_generator(start_y, current_y-amp_y, samples)
     if amp_z == 0:
-        array_z: list[float] = [start_z for x in range(2 * samples)]
+        array_z: list[float] = [start_z for _ in range(2 * samples)]
     else:
         array_z = exramp_triangle_generator(start_z, current_z-amp_z, samples)
 
